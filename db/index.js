@@ -27,19 +27,21 @@ function createBackup() {
   return backupFile;
 }
 
-// Enhanced functions with MongoDB fallback to file system
+// Enhanced functions with better error handling and debugging
 async function addRecord({ name, value }) {
   recordUtils.validateRecord({ name, value });
   
   try {
     // Try MongoDB first
+    console.log('🔄 Attempting to save to MongoDB...');
     const newRecord = await mongodb.addRecord({ name, value });
+    console.log('✅ Successfully saved to MongoDB');
     vaultEvents.emit('recordAdded', newRecord);
     createBackup();
     return newRecord;
   } catch (error) {
     // Fallback to file system
-    console.log('🔄 Using file-based storage (MongoDB unavailable)');
+    console.log('🔄 MongoDB save failed, using file-based storage. Error:', error.message);
     const data = fileDB.readDB();
     const newRecord = { id: recordUtils.generateId(), name, value };
     data.push(newRecord);
@@ -53,10 +55,13 @@ async function addRecord({ name, value }) {
 async function listRecords() {
   try {
     // Try MongoDB first
-    return await mongodb.listRecords();
+    console.log('🔄 Attempting to load from MongoDB...');
+    const records = await mongodb.listRecords();
+    console.log('✅ Successfully loaded from MongoDB');
+    return records;
   } catch (error) {
     // Fallback to file system
-    console.log('🔄 Using file-based storage (MongoDB unavailable)');
+    console.log('🔄 MongoDB load failed, using file-based storage. Error:', error.message);
     return fileDB.readDB();
   }
 }
@@ -64,8 +69,10 @@ async function listRecords() {
 async function updateRecord(id, newName, newValue) {
   try {
     // Try MongoDB first
+    console.log('🔄 Attempting to update in MongoDB...');
     const updatedRecord = await mongodb.updateRecord(id, newName, newValue);
     if (updatedRecord) {
+      console.log('✅ Successfully updated in MongoDB');
       vaultEvents.emit('recordUpdated', updatedRecord);
       createBackup();
       return updatedRecord;
@@ -73,7 +80,7 @@ async function updateRecord(id, newName, newValue) {
     return null;
   } catch (error) {
     // Fallback to file system
-    console.log('🔄 Using file-based storage (MongoDB unavailable)');
+    console.log('🔄 MongoDB update failed, using file-based storage. Error:', error.message);
     const data = fileDB.readDB();
     const record = data.find(r => r.id === Number(id));
     if (!record) return null;
@@ -89,8 +96,10 @@ async function updateRecord(id, newName, newValue) {
 async function deleteRecord(id) {
   try {
     // Try MongoDB first
+    console.log('🔄 Attempting to delete from MongoDB...');
     const deletedRecord = await mongodb.deleteRecord(id);
     if (deletedRecord) {
+      console.log('✅ Successfully deleted from MongoDB');
       vaultEvents.emit('recordDeleted', deletedRecord);
       createBackup();
       return deletedRecord;
@@ -98,7 +107,7 @@ async function deleteRecord(id) {
     return null;
   } catch (error) {
     // Fallback to file system
-    console.log('🔄 Using file-based storage (MongoDB unavailable)');
+    console.log('🔄 MongoDB delete failed, using file-based storage. Error:', error.message);
     let data = fileDB.readDB();
     const record = data.find(r => r.id === Number(id));
     if (!record) return null;
