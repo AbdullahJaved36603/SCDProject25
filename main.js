@@ -7,6 +7,28 @@ const rl = readline.createInterface({
   output: process.stdout
 });
 
+// Search function
+function searchRecords() {
+  rl.question('Enter search keyword: ', keyword => {
+    const records = db.listRecords();
+    const results = records.filter(record => 
+      record.name.toLowerCase().includes(keyword.toLowerCase()) ||
+      record.id.toString().includes(keyword)
+    );
+    
+    if (results.length === 0) {
+      console.log('No records found.');
+    } else {
+      console.log(`Found ${results.length} matching records:`);
+      results.forEach((record, index) => {
+        const createdDate = new Date(record.id).toISOString().split('T')[0];
+        console.log(`${index + 1}. ID: ${record.id} | Name: ${record.name} | Created: ${createdDate}`);
+      });
+    }
+    menu();
+  });
+}
+
 function menu() {
   console.log(`
 ===== NodeVault =====
@@ -14,7 +36,8 @@ function menu() {
 2. List Records
 3. Update Record
 4. Delete Record
-5. Exit
+5. Search Records
+6. Exit
 =====================
   `);
 
@@ -58,6 +81,10 @@ function menu() {
         break;
 
       case '5':
+        searchRecords();
+        break;
+
+      case '6':
         console.log('👋 Exiting NodeVault...');
         rl.close();
         break;
