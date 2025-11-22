@@ -3,6 +3,7 @@ const recordUtils = require('./record');
 const vaultEvents = require('../events');
 const fs = require('fs');
 const path = require('path');
+const mongodb = require('./mongodb');
 
 // Backup function
 function createBackup() {
@@ -26,42 +27,87 @@ function createBackup() {
   return backupFile;
 }
 
-function addRecord({ name, value }) {
+// Enhanced functions with MongoDB fallback to file system
+async function addRecord({ name, value }) {
   recordUtils.validateRecord({ name, value });
-  const data = fileDB.readDB();
-  const newRecord = { id: recordUtils.generateId(), name, value };
-  data.push(newRecord);
-  fileDB.writeDB(data);
-  vaultEvents.emit('recordAdded', newRecord);
-  createBackup(); // Automatic backup
-  return newRecord;
+  
+  try {
+    // Try MongoDB first
+    const newRecord = await mongodb.addRecord({ name, value });
+    vaultEvents.emit('recordAdded', newRecord);
+    createBackup();
+    return newRecord;
+  } catch (error) {
+    // Fallback to file system
+    console.log('🔄 Using file-based storage (MongoDB unavailable)');
+    const data = fileDB.readDB();
+    const newRecord = { id: recordUtils.generateId(), name, value };
+    data.push(newRecord);
+    fileDB.writeDB(data);
+    vaultEvents.emit('recordAdded', newRecord);
+    createBackup();
+    return newRecord;
+  }
 }
 
-function listRecords() {
-  return fileDB.readDB();
+async function listRecords() {
+  try {
+    // Try MongoDB first
+    return await mongodb.listRecords();
+  } catch (error) {
+    // Fallback to file system
+    console.log('🔄 Using file-based storage (MongoDB unavailable)');
+    return fileDB.readDB();
+  }
 }
 
-function updateRecord(id, newName, newValue) {
-  const data = fileDB.readDB();
-  const record = data.find(r => r.id === id);
-  if (!record) return null;
-  record.name = newName;
-  record.value = newValue;
-  fileDB.writeDB(data);
-  vaultEvents.emit('recordUpdated', record);
-  createBackup(); // Automatic backup
-  return record;
+async function updateRecord(id, newName, newValue) {
+  try {
+    // Try MongoDB first
+    const updatedRecord = await mongodb.updateRecord(id, newName, newValue);
+    if (updatedRecord) {
+      vaultEvents.emit('recordUpdated', updatedRecord);
+      createBackup();
+      return updatedRecord;
+    }
+    return null;
+  } catch (error) {
+    // Fallback to file system
+    console.log('🔄 Using file-based storage (MongoDB unavailable)');
+    const data = fileDB.readDB();
+    const record = data.find(r => r.id === Number(id));
+    if (!record) return null;
+    record.name = newName;
+    record.value = newValue;
+    fileDB.writeDB(data);
+    vaultEvents.emit('recordUpdated', record);
+    createBackup();
+    return record;
+  }
 }
 
-function deleteRecord(id) {
-  let data = fileDB.readDB();
-  const record = data.find(r => r.id === id);
-  if (!record) return null;
-  data = data.filter(r => r.id !== id);
-  fileDB.writeDB(data);
-  vaultEvents.emit('recordDeleted', record);
-  createBackup(); // Automatic backup
-  return record;
+async function deleteRecord(id) {
+  try {
+    // Try MongoDB first
+    const deletedRecord = await mongodb.deleteRecord(id);
+    if (deletedRecord) {
+      vaultEvents.emit('recordDeleted', deletedRecord);
+      createBackup();
+      return deletedRecord;
+    }
+    return null;
+  } catch (error) {
+    // Fallback to file system
+    console.log('🔄 Using file-based storage (MongoDB unavailable)');
+    let data = fileDB.readDB();
+    const record = data.find(r => r.id === Number(id));
+    if (!record) return null;
+    data = data.filter(r => r.id !== Number(id));
+    fileDB.writeDB(data);
+    vaultEvents.emit('recordDeleted', record);
+    createBackup();
+    return record;
+  }
 }
 
 // Function to list backups
@@ -83,7 +129,7 @@ function listBackups() {
         size: stats.size
       };
     })
-    .sort((a, b) => b.created - a.created); // Sort by newest first
+    .sort((a, b) => b.created - a.created);
   
   return backupFiles;
 }

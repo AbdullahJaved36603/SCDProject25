@@ -9,10 +9,24 @@ const rl = readline.createInterface({
   output: process.stdout
 });
 
+// Helper function to get creation date from record
+function getCreationDate(record) {
+  // If record has 'created' field (MongoDB), use that
+  if (record.created) {
+    return new Date(record.created);
+  }
+  // If record has 'id' as timestamp (file system), use that
+  if (record.id) {
+    return new Date(record.id);
+  }
+  // Fallback to current date
+  return new Date();
+}
+
 // Search function
 function searchRecords() {
-  rl.question('Enter search keyword: ', keyword => {
-    const records = db.listRecords();
+  rl.question('Enter search keyword: ', async (keyword) => {
+    const records = await db.listRecords();
     const results = records.filter(record => 
       record.name.toLowerCase().includes(keyword.toLowerCase()) ||
       record.id.toString().includes(keyword)
@@ -23,7 +37,7 @@ function searchRecords() {
     } else {
       console.log(`Found ${results.length} matching records:`);
       results.forEach((record, index) => {
-        const createdDate = new Date(record.id).toISOString().split('T')[0];
+        const createdDate = getCreationDate(record).toISOString().split('T')[0];
         console.log(`${index + 1}. ID: ${record.id} | Name: ${record.name} | Created: ${createdDate}`);
       });
     }
@@ -33,14 +47,14 @@ function searchRecords() {
 
 // Sorting function
 function sortRecords() {
-  rl.question('Choose field to sort by (name/date): ', field => {
+  rl.question('Choose field to sort by (name/date): ', async (field) => {
     if (field.toLowerCase() !== 'name' && field.toLowerCase() !== 'date') {
       console.log('Invalid field. Please choose "name" or "date".');
       return sortRecords();
     }
     
-    rl.question('Choose order (ascending/descending): ', order => {
-      const records = db.listRecords();
+    rl.question('Choose order (ascending/descending): ', async (order) => {
+      const records = await db.listRecords();
       let sortedRecords = [...records];
       
       if (field.toLowerCase() === 'name') {
@@ -49,11 +63,13 @@ function sortRecords() {
             ? b.name.localeCompare(a.name) 
             : a.name.localeCompare(b.name);
         });
-      } else { // sort by date (using ID as timestamp)
+      } else { // sort by date
         sortedRecords.sort((a, b) => {
+          const dateA = getCreationDate(a);
+          const dateB = getCreationDate(b);
           return order.toLowerCase() === 'descending' 
-            ? b.id - a.id 
-            : a.id - b.id;
+            ? dateB - dateA 
+            : dateA - dateB;
         });
       }
       
@@ -62,7 +78,7 @@ function sortRecords() {
         if (field.toLowerCase() === 'name') {
           console.log(`${index + 1}. ID: ${record.id} | Name: ${record.name}`);
         } else {
-          const createdDate = new Date(record.id).toISOString().split('T')[0];
+          const createdDate = getCreationDate(record).toISOString().split('T')[0];
           console.log(`${index + 1}. ID: ${record.id} | Name: ${record.name} | Created: ${createdDate}`);
         }
       });
@@ -73,10 +89,16 @@ function sortRecords() {
 
 // Export function
 function exportData() {
-  const records = db.listRecords();
-  const exportDate = new Date().toLocaleString();
-  
-  const exportContent = `
+  rl.question('Are you sure you want to export data? (y/n): ', async (confirm) => {
+    if (confirm.toLowerCase() !== 'y') {
+      console.log('Export cancelled.');
+      return menu();
+    }
+    
+    const records = await db.listRecords();
+    const exportDate = new Date().toLocaleString();
+    
+    const exportContent = `
 VAULT DATA EXPORT
 =================
 Export Date: ${exportDate}
@@ -84,18 +106,20 @@ Total Records: ${records.length}
 File: export.txt
 
 RECORDS:
-${records.map((record, index) => 
-    `${index + 1}. ID: ${record.id} | Name: ${record.name} | Value: ${record.value} | Created: ${new Date(record.id).toISOString().split('T')[0]}`
-).join('\n')}
-  `.trim();
+${records.map((record, index) => {
+    const createdDate = getCreationDate(record).toISOString().split('T')[0];
+    return `${index + 1}. ID: ${record.id} | Name: ${record.name} | Value: ${record.value} | Created: ${createdDate}`;
+}).join('\n')}
+    `.trim();
 
-  try {
-    fs.writeFileSync('export.txt', exportContent);
-    console.log('✅ Data exported successfully to export.txt');
-  } catch (error) {
-    console.log('❌ Error exporting data:', error.message);
-  }
-  menu();
+    try {
+      fs.writeFileSync('export.txt', exportContent);
+      console.log('✅ Data exported successfully to export.txt');
+    } catch (error) {
+      console.log('❌ Error exporting data:', error.message);
+    }
+    menu();
+  });
 }
 
 // View backups function
@@ -114,31 +138,37 @@ function viewBackups() {
 
 // Statistics function
 function showStatistics() {
-  const records = db.listRecords();
-  
-  if (records.length === 0) {
-    console.log('No records available for statistics.');
-    return menu();
-  }
+  rl.question('Do you want to view vault statistics? (y/n): ', async (confirm) => {
+    if (confirm.toLowerCase() !== 'y') {
+      console.log('Statistics view cancelled.');
+      return menu();
+    }
+    
+    const records = await db.listRecords();
+    
+    if (records.length === 0) {
+      console.log('No records available for statistics.');
+      return menu();
+    }
 
-  // Calculate statistics
-  const totalRecords = records.length;
-  
-  // Find last modified date (using the latest ID as proxy for modification time)
-  const lastModified = new Date(Math.max(...records.map(r => r.id)));
-  
-  // Find longest name
-  const longestNameRecord = records.reduce((longest, current) => 
-    current.name.length > longest.name.length ? current : longest
-  , records[0]);
-  
-  // Find earliest and latest creation dates
-  const creationDates = records.map(r => new Date(r.id));
-  const earliestRecord = new Date(Math.min(...creationDates));
-  const latestRecord = new Date(Math.max(...creationDates));
-  
-  // Display statistics
-  console.log(`
+    // Calculate statistics
+    const totalRecords = records.length;
+    
+    // Find last modified date (using the latest creation date)
+    const lastModified = new Date(Math.max(...records.map(r => getCreationDate(r).getTime())));
+    
+    // Find longest name
+    const longestNameRecord = records.reduce((longest, current) => 
+      current.name.length > longest.name.length ? current : longest
+    , records[0]);
+    
+    // Find earliest and latest creation dates
+    const creationDates = records.map(r => getCreationDate(r));
+    const earliestRecord = new Date(Math.min(...creationDates));
+    const latestRecord = new Date(Math.max(...creationDates));
+    
+    // Display statistics
+    console.log(`
 Vault Statistics:
 --------------------------
 Total Records: ${totalRecords}
@@ -147,11 +177,13 @@ Longest Name: ${longestNameRecord.name} (${longestNameRecord.name.length} charac
 Earliest Record: ${earliestRecord.toISOString().split('T')[0]}
 Latest Record: ${latestRecord.toISOString().split('T')[0]}
 --------------------------
-  `.trim());
+    `.trim());
 
-  menu();
+    menu();
+  });
 }
 
+// Update menu function to handle async operations
 function menu() {
   console.log(`
 ===== NodeVault =====
@@ -168,12 +200,12 @@ function menu() {
 =====================
   `);
 
-  rl.question('Choose option: ', ans => {
+  rl.question('Choose option: ', (ans) => {
     switch (ans.trim()) {
       case '1':
-        rl.question('Enter name: ', name => {
-          rl.question('Enter value: ', value => {
-            db.addRecord({ name, value });
+        rl.question('Enter name: ', (name) => {
+          rl.question('Enter value: ', async (value) => {
+            await db.addRecord({ name, value });
             console.log('✅ Record added successfully!');
             menu();
           });
@@ -181,17 +213,25 @@ function menu() {
         break;
 
       case '2':
-        const records = db.listRecords();
-        if (records.length === 0) console.log('No records found.');
-        else records.forEach(r => console.log(`ID: ${r.id} | Name: ${r.name} | Value: ${r.value}`));
-        menu();
+        (async () => {
+          const records = await db.listRecords();
+          if (records.length === 0) {
+            console.log('No records found.');
+          } else {
+            records.forEach(r => {
+              const createdDate = getCreationDate(r).toISOString().split('T')[0];
+              console.log(`ID: ${r.id} | Name: ${r.name} | Value: ${r.value} | Created: ${createdDate}`);
+            });
+          }
+          menu();
+        })();
         break;
 
       case '3':
-        rl.question('Enter record ID to update: ', id => {
-          rl.question('New name: ', name => {
-            rl.question('New value: ', value => {
-              const updated = db.updateRecord(Number(id), name, value);
+        rl.question('Enter record ID to update: ', (id) => {
+          rl.question('New name: ', (name) => {
+            rl.question('New value: ', async (value) => {
+              const updated = await db.updateRecord(id, name, value);
               console.log(updated ? '✅ Record updated!' : '❌ Record not found.');
               menu();
             });
@@ -200,10 +240,16 @@ function menu() {
         break;
 
       case '4':
-        rl.question('Enter record ID to delete: ', id => {
-          const deleted = db.deleteRecord(Number(id));
-          console.log(deleted ? '🗑️ Record deleted!' : '❌ Record not found.');
-          menu();
+        rl.question('Enter record ID to delete: ', (id) => {
+          rl.question('Are you sure? (y/n): ', async (confirm) => {
+            if (confirm.toLowerCase() === 'y') {
+              const deleted = await db.deleteRecord(id);
+              console.log(deleted ? '🗑️ Record deleted!' : '❌ Record not found.');
+            } else {
+              console.log('Deletion cancelled.');
+            }
+            menu();
+          });
         });
         break;
 
