@@ -98,6 +98,20 @@ ${records.map((record, index) =>
   menu();
 }
 
+// View backups function
+function viewBackups() {
+  const backups = db.listBackups();
+  if (backups.length === 0) {
+    console.log('No backups found.');
+  } else {
+    console.log('Available Backups:');
+    backups.forEach((backup, index) => {
+      console.log(`${index + 1}. ${backup.filename} | Created: ${backup.created.toLocaleString()} | Size: ${backup.size} bytes`);
+    });
+  }
+  menu();
+}
+
 function menu() {
   console.log(`
 ===== NodeVault =====
@@ -108,7 +122,8 @@ function menu() {
 5. Search Records
 6. Sort Records
 7. Export Data
-8. Exit
+8. View Backups
+9. Exit
 =====================
   `);
 
@@ -164,6 +179,10 @@ function menu() {
         break;
 
       case '8':
+        viewBackups();
+        break;
+
+      case '9':
         console.log('👋 Exiting NodeVault...');
         rl.close();
         break;

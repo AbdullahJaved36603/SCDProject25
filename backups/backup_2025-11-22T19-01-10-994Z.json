@@ -1,0 +1,26 @@
+{
+  "timestamp": "2025-11-22T19:01:10.994Z",
+  "totalRecords": 4,
+  "records": [
+    {
+      "id": 1763831891543,
+      "name": "Abdullah",
+      "value": "3"
+    },
+    {
+      "id": 1763831977945,
+      "name": "Abdullah",
+      "value": "3"
+    },
+    {
+      "id": 1763836545695,
+      "name": "Ali",
+      "value": "32"
+    },
+    {
+      "id": 1763838070992,
+      "name": "bilal",
+      "value": "43"
+    }
+  ]
+}
