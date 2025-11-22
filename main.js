@@ -112,6 +112,46 @@ function viewBackups() {
   menu();
 }
 
+// Statistics function
+function showStatistics() {
+  const records = db.listRecords();
+  
+  if (records.length === 0) {
+    console.log('No records available for statistics.');
+    return menu();
+  }
+
+  // Calculate statistics
+  const totalRecords = records.length;
+  
+  // Find last modified date (using the latest ID as proxy for modification time)
+  const lastModified = new Date(Math.max(...records.map(r => r.id)));
+  
+  // Find longest name
+  const longestNameRecord = records.reduce((longest, current) => 
+    current.name.length > longest.name.length ? current : longest
+  , records[0]);
+  
+  // Find earliest and latest creation dates
+  const creationDates = records.map(r => new Date(r.id));
+  const earliestRecord = new Date(Math.min(...creationDates));
+  const latestRecord = new Date(Math.max(...creationDates));
+  
+  // Display statistics
+  console.log(`
+Vault Statistics:
+--------------------------
+Total Records: ${totalRecords}
+Last Modified: ${lastModified.toLocaleString()}
+Longest Name: ${longestNameRecord.name} (${longestNameRecord.name.length} characters)
+Earliest Record: ${earliestRecord.toISOString().split('T')[0]}
+Latest Record: ${latestRecord.toISOString().split('T')[0]}
+--------------------------
+  `.trim());
+
+  menu();
+}
+
 function menu() {
   console.log(`
 ===== NodeVault =====
@@ -123,7 +163,8 @@ function menu() {
 6. Sort Records
 7. Export Data
 8. View Backups
-9. Exit
+9. View Vault Statistics
+10. Exit
 =====================
   `);
 
@@ -183,6 +224,10 @@ function menu() {
         break;
 
       case '9':
+        showStatistics();
+        break;
+
+      case '10':
         console.log('👋 Exiting NodeVault...');
         rl.close();
         break;
