@@ -1,4 +1,6 @@
 const readline = require('readline');
+const fs = require('fs');
+const path = require('path');
 const db = require('./db');
 require('./events/logger'); // Initialize event logger
 
@@ -29,6 +31,73 @@ function searchRecords() {
   });
 }
 
+// Sorting function
+function sortRecords() {
+  rl.question('Choose field to sort by (name/date): ', field => {
+    if (field.toLowerCase() !== 'name' && field.toLowerCase() !== 'date') {
+      console.log('Invalid field. Please choose "name" or "date".');
+      return sortRecords();
+    }
+    
+    rl.question('Choose order (ascending/descending): ', order => {
+      const records = db.listRecords();
+      let sortedRecords = [...records];
+      
+      if (field.toLowerCase() === 'name') {
+        sortedRecords.sort((a, b) => {
+          return order.toLowerCase() === 'descending' 
+            ? b.name.localeCompare(a.name) 
+            : a.name.localeCompare(b.name);
+        });
+      } else { // sort by date (using ID as timestamp)
+        sortedRecords.sort((a, b) => {
+          return order.toLowerCase() === 'descending' 
+            ? b.id - a.id 
+            : a.id - b.id;
+        });
+      }
+      
+      console.log('Sorted Records:');
+      sortedRecords.forEach((record, index) => {
+        if (field.toLowerCase() === 'name') {
+          console.log(`${index + 1}. ID: ${record.id} | Name: ${record.name}`);
+        } else {
+          const createdDate = new Date(record.id).toISOString().split('T')[0];
+          console.log(`${index + 1}. ID: ${record.id} | Name: ${record.name} | Created: ${createdDate}`);
+        }
+      });
+      menu();
+    });
+  });
+}
+
+// Export function
+function exportData() {
+  const records = db.listRecords();
+  const exportDate = new Date().toLocaleString();
+  
+  const exportContent = `
+VAULT DATA EXPORT
+=================
+Export Date: ${exportDate}
+Total Records: ${records.length}
+File: export.txt
+
+RECORDS:
+${records.map((record, index) => 
+    `${index + 1}. ID: ${record.id} | Name: ${record.name} | Value: ${record.value} | Created: ${new Date(record.id).toISOString().split('T')[0]}`
+).join('\n')}
+  `.trim();
+
+  try {
+    fs.writeFileSync('export.txt', exportContent);
+    console.log('✅ Data exported successfully to export.txt');
+  } catch (error) {
+    console.log('❌ Error exporting data:', error.message);
+  }
+  menu();
+}
+
 function menu() {
   console.log(`
 ===== NodeVault =====
@@ -37,7 +106,9 @@ function menu() {
 3. Update Record
 4. Delete Record
 5. Search Records
-6. Exit
+6. Sort Records
+7. Export Data
+8. Exit
 =====================
   `);
 
@@ -85,6 +156,14 @@ function menu() {
         break;
 
       case '6':
+        sortRecords();
+        break;
+
+      case '7':
+        exportData();
+        break;
+
+      case '8':
         console.log('👋 Exiting NodeVault...');
         rl.close();
         break;
