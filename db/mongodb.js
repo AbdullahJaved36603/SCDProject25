@@ -17,7 +17,7 @@ let isConnected = false;
 async function connectDB() {
   if (isConnected) return true;
 
-  const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/vaultdb';
+  const MONGODB_URI = process.env.MONGODB_URI ;
   console.log('🔄 Connecting to MongoDB:', MONGODB_URI);
 
   try {

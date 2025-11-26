@@ -1,0 +1,33 @@
+version: "3.9"
+
+services:
+  mongo:
+    image: mongo:6
+    container_name: vault-mongo
+    networks:
+      - vault-net
+    volumes:
+      - vault-mongo-data:/data/db
+    environment:
+      MONGO_INITDB_DATABASE: vaultdb
+    ports:
+      - "27018:27017"   # not public, just mapped for testing
+
+  backend:
+    image: abdullah36603/nodevault-backend:latest
+    container_name: nodevault
+    networks:
+      - vault-net
+    env_file:
+      - .env
+    depends_on:
+      - mongo
+    stdin_open: true
+    tty: true
+
+networks:
+  vault-net:
+    driver: bridge
+
+volumes:
+  vault-mongo-data:
